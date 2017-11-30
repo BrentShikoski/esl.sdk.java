@@ -15,7 +15,6 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLContexts;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
@@ -43,14 +42,13 @@ import java.security.cert.X509Certificate;
 import java.util.Collection;
 
 import static com.silanis.esl.sdk.internal.HttpUtil.percentDecode;
-import static org.apache.http.conn.ssl.SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
 
 public class RestClient {
 
     public static final String CHARSET_UTF_8 = "UTF-8";
     private static final int BUFFER_SIZE = 4096;
 
-    public static final String ESL_API_VERSION = "11.4";
+    public static final String ESL_API_VERSION = "11.9";
     public static final String ESL_API_VERSION_HEADER = "esl-api-version=" + ESL_API_VERSION;
 
     public static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";
@@ -70,8 +68,8 @@ public class RestClient {
     private final String apiToken;
     private final Support support = new Support();
     private final boolean allowAllSSLCertificates;
-
-    private ProxyConfiguration proxyConfiguration;
+    private final boolean useSystemSSLProperties;
+    private final ProxyConfiguration proxyConfiguration;
 
     public RestClient(String apiToken) {
         this(apiToken, false);
@@ -86,9 +84,14 @@ public class RestClient {
     }
 
     public RestClient(String apiToken, boolean allowAllSSLCertificates, ProxyConfiguration proxyConfiguration) {
+    	this(apiToken, allowAllSSLCertificates, proxyConfiguration, false);
+    }
+    
+    public RestClient(String apiToken, boolean allowAllSSLCertificates, ProxyConfiguration proxyConfiguration, boolean useSystemSSLProperties) {
         this.apiToken = apiToken;
         this.allowAllSSLCertificates = allowAllSSLCertificates;
         this.proxyConfiguration = proxyConfiguration;
+        this.useSystemSSLProperties = useSystemSSLProperties;
     }
 
     public String post(String path, String jsonPayload) throws IOException, HttpException, URISyntaxException, RequestException {
@@ -234,6 +237,10 @@ public class RestClient {
         if (allowAllSSLCertificates) {
             httpClientBuilder.setSSLSocketFactory(buildSSLSocketFactory());
         }
+        
+        if (this.useSystemSSLProperties) {
+        	httpClientBuilder.useSystemProperties();
+        }
 
         if (proxyConfiguration != null) {
             if (proxyConfiguration.hasCredentials()) {
@@ -252,9 +259,7 @@ public class RestClient {
         //Our client library should implicitly trust our eSignLive server. This also allows testing against
         //server with Self-signed certificates.
         try {
-            SSLContext sslContext = SSLContexts.custom()
-                    .useTLS()
-                    .build();
+            SSLContext sslContext = SSLContext.getInstance("SSL");
             sslContext.init(null,
                     new TrustManager[]{new X509TrustManager() {
                         public X509Certificate[] getAcceptedIssuers() {
@@ -269,7 +274,7 @@ public class RestClient {
                                 X509Certificate[] certs, String authType) {
                         }
                     }}, new SecureRandom());
-            return new SSLConnectionSocketFactory(sslContext, ALLOW_ALL_HOSTNAME_VERIFIER);
+            return new SSLConnectionSocketFactory(sslContext, SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
         } catch (KeyManagementException e) {
             throw new HttpException("Problem configuring SSL Socket factory", e);
         } catch (NoSuchAlgorithmException e) {
