@@ -68,8 +68,8 @@ public class RestClient {
     private final String apiToken;
     private final Support support = new Support();
     private final boolean allowAllSSLCertificates;
-
-    private ProxyConfiguration proxyConfiguration;
+    private final boolean useSystemSSLProperties;
+    private final ProxyConfiguration proxyConfiguration;
 
     public RestClient(String apiToken) {
         this(apiToken, false);
@@ -84,9 +84,14 @@ public class RestClient {
     }
 
     public RestClient(String apiToken, boolean allowAllSSLCertificates, ProxyConfiguration proxyConfiguration) {
+    	this(apiToken, allowAllSSLCertificates, proxyConfiguration, false);
+    }
+    
+    public RestClient(String apiToken, boolean allowAllSSLCertificates, ProxyConfiguration proxyConfiguration, boolean useSystemSSLProperties) {
         this.apiToken = apiToken;
         this.allowAllSSLCertificates = allowAllSSLCertificates;
         this.proxyConfiguration = proxyConfiguration;
+        this.useSystemSSLProperties = useSystemSSLProperties;
     }
 
     public String post(String path, String jsonPayload) throws IOException, HttpException, URISyntaxException, RequestException {
@@ -231,6 +236,10 @@ public class RestClient {
         final HttpClientBuilder httpClientBuilder = HttpClients.custom();
         if (allowAllSSLCertificates) {
             httpClientBuilder.setSSLSocketFactory(buildSSLSocketFactory());
+        }
+        
+        if (this.useSystemSSLProperties) {
+        	httpClientBuilder.useSystemProperties();
         }
 
         if (proxyConfiguration != null) {
